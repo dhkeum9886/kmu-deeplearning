@@ -138,6 +138,9 @@ def get_device() -> tuple[torch.device, int]:
     • 사용 가능하면 ('cuda', GPU 개수)
     • 아니면 ('cpu', 0)
     """
+    print("CUDA available:", torch.cuda.is_available())
     if torch.cuda.is_available():
+        print("GPU  개수:", torch.cuda.device_count())
+        print("주 GPU :", torch.cuda.get_device_name(0))
         return torch.device("cuda"), torch.cuda.device_count()
     return torch.device("cpu"), 0
