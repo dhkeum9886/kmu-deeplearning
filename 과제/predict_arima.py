@@ -1,64 +1,62 @@
-# predict_arima.py
-# CUDA 가능 시 GPU, 아니면 CPU에서 추론 + 이상 구간(|Z|>3) 표시
+"""
+predict_arima.py
 
-import argparse, unicodedata
-import pandas as pd
+■ 역할
+ 1. 학습된 ARIMA 파라미터(.pt)를 로드
+ 2. 평가용 CSV(공격 포함)에서 동일 전처리 후 시계열 Tensor 생성
+ 3. 1-step ahead 잔차(residual) 계산
+ 4. 잔차를 Z-score 표준화 → |Z|>3인 스텝을 이상치로 판단
+ 5. 이상치 개수, 비율, 타임스탬프(앞10개) 출력
+
+■ 사용 예시
+    python predict_arima.py --csv SWaT_Attack.csv --tag LIT101 \
+                             --model models/arima_LIT101.pt
+"""
+
+import argparse
 import torch
 from scipy.stats import zscore
 
-DATE_FMT = "%d/%m/%Y %I:%M:%S %p"
+from common_utils import load_with_timestamp, ARIMAModel, get_device
 
-def load_with_timestamp(csv_path: str, tag: str) -> torch.Tensor:
-    raw_cols = pd.read_csv(csv_path, nrows=0).columns
-    ts_col = next(c for c in raw_cols if "timestamp" in unicodedata.normalize("NFKC", c).lower())
-    df = pd.read_csv(csv_path, usecols=[ts_col, tag], parse_dates=[ts_col],
-                     date_format=DATE_FMT, index_col=ts_col, decimal=",")
-    if not pd.api.types.is_numeric_dtype(df[tag]):
-        df[tag] = df[tag].astype(str).str.replace(",", ".", regex=False).astype("float32")
-    return torch.tensor(df[tag].asfreq("1s").interpolate("linear").values, dtype=torch.float32), df.index
-
-class ARIMAModel(torch.nn.Module):
-    def __init__(self, p=2, d=1, q=2):
-        super().__init__()
-        self.p, self.d, self.q = p, d, q
-        self.phi   = torch.nn.Parameter(torch.zeros(p))
-        self.theta = torch.nn.Parameter(torch.zeros(q))
-        self.mu    = torch.nn.Parameter(torch.zeros(1))
-
-    def forward(self, y):                # y : (T,)
-        d, p, q = self.d, self.p, self.q
-        T = y.size(0) - d
-        eps = y.new_zeros(T + q)
-        yd  = y[d:] - y[:-d]
-        for t in range(p, T):
-            ar = (self.phi * torch.flip(y[d+t-p:d+t], dims=[0])).sum()
-            ma = (self.theta * torch.flip(eps[t-q:t], dims=[0])).sum()
-            pred = self.mu + ar + ma
-            eps[t] = yd[t] - pred
-        return eps[p:]
-
-# ─────────────────────────────────────────────
+# ── 1) 커맨드라인 인자 설정 ─────────────────────────────────
 parser = argparse.ArgumentParser()
-parser.add_argument("--csv", default="SWaT_Dataset_Attack_v1.csv")
-parser.add_argument("--tag", default="LIT101")
-parser.add_argument("--model", default="models/arima_LIT101.pt")
+parser.add_argument("--csv",   default="SWaT_Dataset_Attack_v1.csv",
+                    help="평가용 CSV 파일 경로")
+parser.add_argument("--tag",   default="LIT101",
+                    help="예측할 센서 태그명")
+parser.add_argument("--model", default="models/arima_LIT101.pt",
+                    help="학습된 파라미터(.pt) 경로")
 args = parser.parse_args()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Inference device: {device}")
+# ── 2) 디바이스 확인 ────────────────────────────────────────────
+device, _ = get_device()
+print(f"▶ 추론 디바이스: {device}")
 
-series_tensor, ts_index = load_with_timestamp(args.csv, args.tag)
-series_tensor = series_tensor.to(device)
+# ── 3) 데이터 로드 → Tensor, 타임스탬프 인덱스 반환 ─────────────
+series, ts_index = load_with_timestamp(args.csv, args.tag)
+series = series.to(device)  # (T,)
 
+# ── 4) 모델 초기화 및 파라미터 로드 ───────────────────────────
 model = ARIMAModel().to(device)
-model.load_state_dict(torch.load(args.model, map_location=device))
-model.eval()
+state = torch.load(args.model, map_location=device)
+model.load_state_dict(state)
+model.eval()  # 평가 모드: 드롭아웃 등 비활성
 
-with torch.no_grad():
-    residuals = model(series_tensor)
+# ── 5) 1-step 잔차 계산 ────────────────────────────────────────
+with torch.no_grad():  # 추론용: 그래디언트 계산 OFF
+    # 모델 forward는 배치 차원이 없으므로 1D 입력 허용
+    residuals = model(series).squeeze(0)  # (T-p,)
 
+# ── 6) Z-score > 3로 이상치 판단 ───────────────────────────────
 z = zscore(residuals.cpu().numpy(), nan_policy="omit")
-anoms = (abs(z) > 3)
+anoms = abs(z) > 3
 
-print(f"스텝 {len(z)}개 중 이상치 {anoms.sum()}개 ({anoms.mean()*100:.2f}%)")
-print("앞 10개 타임스탬프:", ts_index[model.d + model.p:][anoms][:10].to_list())
+# ── 7) 결과 출력 ───────────────────────────────────────────────
+total = len(z)
+count = int(anoms.sum())
+ratio = count / total * 100
+print(f"전체 {total} 스텝 중 이상치 {count}개 ({ratio:.2f}%)")
+print("앞 10개 이상치 타임스탬프:")
+for t in ts_index[model.d + model.p :][anoms][:10]:
+    print(" •", t)
