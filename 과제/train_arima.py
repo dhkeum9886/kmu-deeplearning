@@ -31,7 +31,7 @@ parser.add_argument("--csv",    default="SWaT_Dataset_Normal_v1.csv",
                     help="정상 구간 CSV 파일 경로")
 parser.add_argument("--tag",    default="LIT101",
                     help="학습할 센서 태그명")
-parser.add_argument("--epochs", type=int, default=300,
+parser.add_argument("--epochs", type=int, default=100,
                     help="전체 학습 반복 횟수(Epoch)")
 parser.add_argument("--lr",     type=float, default=1e-2,
                     help="학습률(Learning Rate)")
