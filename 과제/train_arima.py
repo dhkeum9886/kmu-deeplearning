@@ -27,7 +27,7 @@ from common_utils import load_with_timestamp, ARIMAModel, get_device
 # 1) 커맨드라인 인자 정의
 # ──────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
-parser.add_argument("--csv",    default="SWaT_Dataset_Normal_v1.csv",
+parser.add_argument("--csv",    default="train.csv",
                     help="정상 구간 CSV 파일 경로")
 parser.add_argument("--tag",    default="LIT101",
                     help="학습할 센서 태그명")
