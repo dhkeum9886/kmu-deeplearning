@@ -2,7 +2,7 @@
 common_utils.py
 
 ■ 역할
-  • load_csv(): CSV에서 지정 태그 시계열 로드·전처리
+  • load_csv(): CSV에서 지정 태그 시계열 로드, 전처리
   • ARIMAModel: ARIMA(p,d,q) 모델 정의
   • get_device(): CUDA 사용 가능 여부 확인, GPU 목록 출력
 """
@@ -59,9 +59,9 @@ class ARIMAModel(nn.Module):
     """
     PyTorch 기반 ARIMA(p, d, q) 모델
     ARIMA(p,d,q) 파라미터 정의:
-    - p (AR 차수): 과거 관측치 몇 개를 볼지
-    - d (차분 차수): 몇 번 차분해 정상 시계열로 만들지
-    - q (MA 차수): 과거 오차 몇 개를 볼지
+    - p (AR 차수): 과거 관측치 몇 개를 볼지, 직전 2시점의 값을 반영
+    - d (차분 차수): 몇 번 차분해 정상 시계열로 만들지, 1차 차분 만으로 안정적 패턴
+    - q (MA 차수): 과거 오차 몇 개를 볼지, 직전 2시점의 오차를 반영
     """
 
     def __init__(self, p: int = 2, d: int = 1, q: int = 2):

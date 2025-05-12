@@ -38,7 +38,7 @@ def train_loop(model, data, epochs, optimizer):
     • epochs   : 학습 반복 횟수
     • optimizer: 옵티마이저
     """
-    # 로깅을 위한 타이머, 데이트타임객체
+    # 로깅을 위한 타이머, 시간 객체
     start_wall = datetime.now()
     start_perf = time.perf_counter()
     print(f"학습 시작: {start_wall:%Y-%m-%d %H:%M:%S}")
@@ -47,7 +47,7 @@ def train_loop(model, data, epochs, optimizer):
     for epoch in trange(1, epochs + 1, desc="Epochs"):
         # 기울기 초기화
         optimizer.zero_grad()
-        # 순전파(Forward) + 손실 계산
+        # forward() 호출 + 손실 계산  # 평균제곱오차
         loss = torch.mean((model(data)) ** 2)
         # 역전파
         loss.backward()
