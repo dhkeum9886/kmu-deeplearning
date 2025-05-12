@@ -2,48 +2,26 @@
 common_utils.py
 
 ■ 역할
-  • CSV 파일에서 주어진 센서 태그(tag) 데이터를 읽어와
-    - 타임스탬프 열 자동 탐지
-    - 문자열 정리 및 datetime 변환
-    - 중복 타임스탬프 제거
-    - 1초 단위로 리샘플링(결측 시 선형 보간)
-    - PyTorch Tensor로 변환
-  • ARIMAModel 클래스:
-    - 전통적 ARIMA 시계열 모델(p, d, q)을 PyTorch nn.Module로 구현
-    - 학습 가능한 파라미터(자기회귀 계수, 이동평균 계수, 상수항)
-    - forward 호출 시 잔차(residual) 계산 결과 반환
-  • get_device():
-    - CUDA 사용 가능 여부 확인
-    - 사용 가능한 GPU 개수 반환
-
-■ 상세 설명
-  • load_csv:
-    -
-  • ARIMAModel:
-    - 초기화 시 p, d, q 차수를 설정하고 파라미터를 nn.Parameter로 선언
-    - forward
-      -- d 차분 수행 (차분 차수)
-      -- 과거 p 스텝 관측치로 AR 부분 계산
-      -- 과거 q 스텝 잔차로 MA 부분 계산
-      -- 예측값 = 상수항 + AR + MA, 잔차 = 실제 - 예측
-      -- 앞 p 스텝은 초기값으로 제외한 나머지 잔차 반환
-  • get_device:
-    - GPU가 있으면 "cuda" 디바이스와 GPU 개수 반환,
-    - 없으면 "cpu"와 0 반환
+  • load_csv(): CSV에서 지정 태그 시계열 로드·전처리
+  • ARIMAModel: ARIMA(p,d,q) 모델 정의
+  • get_device(): CUDA 사용 가능 여부 확인, GPU 목록 출력
 """
 
 import unicodedata
 import pandas as pd
 import torch
 import torch.nn as nn
+from typing import Tuple
 
 # 인덱스의 타임스탬프 포맷
 DATE_FMT = "%d/%m/%Y %I:%M:%S %p"
 
 
-def load_csv(csv_path: str, tag: str) -> tuple[torch.Tensor, pd.DatetimeIndex]:
+def load_csv(csv_path: str, tag: str) -> Tuple[torch.Tensor, pd.DatetimeIndex]:
     """
-    CSV에서 지정한 센서(tag) 데이터를 읽어와 Tensor와 Timestamp 인덱스를 반환
+    CSV에서 지정 태그 열을 읽어
+    1초 간격으로 리샘플링·보간한 시계열 Tensor와
+    DatetimeIndex를 반환.
     """
     # 구분자 자동 감지
     with open(csv_path, 'r', encoding='utf-8') as f:
@@ -80,7 +58,7 @@ def load_csv(csv_path: str, tag: str) -> tuple[torch.Tensor, pd.DatetimeIndex]:
 class ARIMAModel(nn.Module):
     """
     PyTorch 기반 ARIMA(p, d, q) 모델
-    GPU를 활용하여 학습을 하기 위함.
+    ARIMA(p,d,q) 파라미터 정의:
     - p (AR 차수): 과거 관측치 몇 개를 볼지
     - d (차분 차수): 몇 번 차분해 정상 시계열로 만들지
     - q (MA 차수): 과거 오차 몇 개를 볼지
@@ -141,4 +119,5 @@ def get_device() -> tuple[torch.device, int]:
         [print(f"[{idx}] {torch.cuda.get_device_name(idx)}") for idx in range(count)]
         return torch.device("cuda"), torch.cuda.device_count()
     else:
+        print("GPU 미감지: CPU로 실행")
         return torch.device("cpu"), 0
