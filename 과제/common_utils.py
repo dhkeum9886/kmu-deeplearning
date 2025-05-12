@@ -92,7 +92,7 @@ class ARIMAModel(nn.Module):
         # 차분된 시계열
         yd = y[:, d:] - y[:, :-d]
 
-        # t 에 따라 AR+MA 계산 → 잔차 저장
+        # t 에 따라 AR+MA 계산, 잔차 저장
         for t in range(p, T):
             # ar, 과거 p개 시점의 관측치에 대한 가중합
             ar = (self.phi * torch.flip(y[:, d + t - p:d + t], dims=[1])).sum(dim=1)
