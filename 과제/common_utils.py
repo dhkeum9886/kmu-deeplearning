@@ -1,5 +1,3 @@
-## common\_utils.py
-
 """
 common_utils.py
 
