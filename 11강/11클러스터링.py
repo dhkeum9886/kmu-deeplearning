@@ -12,7 +12,8 @@ df.info()
 print(df)
 
 data=pd.get_dummies(df, columns=['Species'])
-data
+print(data)
+
 
 x, y = train_test_split(data, test_size=0.2, random_state=123)
 
